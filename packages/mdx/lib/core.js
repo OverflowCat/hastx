@@ -277,10 +277,17 @@ export function createProcessor(options, $typst) {
     }
   }
 
-
+  let __hast = null;
+  function tryParse() {
+    // @ts-ignore
+    this.parser = parser;
+    function parser(_doc, file) {
+      return __hast;
+    }
+  }
 
   const pipeline = unified()
-    .use(typ2rehype)
+    .use(tryParse)
     .use(rehypeTransformJsxInTypst)
     .use(settings.rehypePlugins || [])
 
@@ -298,7 +305,10 @@ export function createProcessor(options, $typst) {
     .use(recmaStringify, settings)
     .use(settings.recmaPlugins || [])
 
+
+  pipeline.__setHast = function (hast) {
+    __hast = hast;
+  }
   // @ts-expect-error: TS doesn’t get the plugins we added with if-statements.
   return pipeline
 }
-
