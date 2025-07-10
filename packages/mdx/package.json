@@ -47,6 +47,8 @@
     "@types/estree-jsx": "^1.0.0",
     "@types/hast": "^3.0.0",
     "@types/mdx": "^2.0.0",
+    "acorn": "^8.15.0",
+    "acorn-jsx": "^5.3.2",
     "collapse-white-space": "^2.0.0",
     "devlop": "^1.0.0",
     "estree-util-is-identifier-name": "^3.0.0",
@@ -103,5 +105,9 @@
       "unicorn/prefer-at": "off",
       "unicorn/prefer-code-point": "off"
     }
+  },
+  "devDependencies": {
+    "@myriaddreamin/typst-ts-node-compiler": "^0.6.1-rc1",
+    "@overflowcat/typst-ts-node-compiler-darwin-arm64": "^0.6.1-rc116"
   }
 }

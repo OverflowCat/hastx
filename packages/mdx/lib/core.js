@@ -136,6 +136,10 @@ import {recmaJsxRewrite} from './plugin/recma-jsx-rewrite.js'
 import {rehypeRemoveRaw} from './plugin/rehype-remove-raw.js'
 import {remarkMarkAndUnravel} from './plugin/remark-mark-and-unravel.js'
 import {nodeTypes} from './node-types.js'
+import { Parser } from 'acorn'
+import jsx from 'acorn-jsx'
+const myParser = Parser.extend(jsx())
+const acornOptions = {ecmaVersion: /** @type {const} */ 2024, sourceType: 'module'}
 
 const removedOptions = [
   'compilers',
@@ -147,6 +151,79 @@ const removedOptions = [
 ]
 
 let warned = false
+
+import { mkdirSync, rmdirSync, writeFileSync } from 'node:fs'
+
+function recRemoveObject(obj, keys) {
+  // find keys recursively and delete them
+  Object.keys(obj).forEach((k) => {
+    if (keys.includes(k)) {
+      delete obj[k]
+    }
+    if (typeof obj[k] === 'object' && obj[k] !== null) {
+      recRemoveObject(obj[k], keys)
+    }
+  })
+  return obj
+}
+
+rmdirSync('ast', { recursive: true })
+let count = 1 // test case number
+const getRehypeStealMdxmdast = (stage = 'mdast') => {
+  const remarkStealMdxmdast = () => {
+    return function (tree, file) {
+      mkdirSync('ast', { recursive: true })
+      writeFileSync(`ast/case-${count}-${stage}.json`, JSON.stringify(tree, null, 2))
+    }
+  }
+  return remarkStealMdxmdast
+}
+
+function addOwnEsTree(node) {
+  if (node.type === 'mdxjsEsm' ||
+    node.type === 'mdxTextExpression' ||
+    node.type === 'mdxFlowExpression' ||
+    node.type === 'mdxJsxAttribute' ||
+    node.type === 'mdxJsxAttributeValueExpression' ||
+    node.type === 'mdxJsxExpressionAttribute') {
+      try {
+        const myEsTree = myParser.parse(node.value, acornOptions)
+        node.data.estree = myEsTree
+      } catch (e) {
+        console.log("<<<<<< SyntaxError when parsing", node.type, node.value)
+        console.log(e)
+      }
+  } else if (node.children) {
+    node.children.forEach(addOwnEsTree)
+  }
+}
+
+const rehypeStealMdxhast = () => {
+  /**
+   * @param {any} tree
+   * @param {any} file
+   */
+  return function (tree, file) {
+    // 创建一个新对象，将新属性放在前面
+    let newTree = {}
+
+    if (file.value) {
+      newTree.__value = file.value
+    } else {
+      newTree.__file = file
+    }
+
+    // 将原对象的所有属性复制到新对象
+    Object.assign(newTree, tree)
+
+
+    // newTree = recRemoveObject(newTree, ['__value', '__file', 'estree'])
+    addOwnEsTree(newTree)
+    mkdirSync('ast', { recursive: true })
+    writeFileSync(`ast/case-${count++}-hast.json`, JSON.stringify(newTree, null, 2))
+    // return newTree
+  }
+}
 
 /**
  * Create a processor to compile markdown or MDX to JavaScript.
@@ -167,8 +244,8 @@ export function createProcessor(options) {
     if (key in settings) {
       unreachable(
         'Unexpected removed option `' +
-          key +
-          '`; see <https://mdxjs.com/migrating/v2/> on how to migrate'
+        key +
+        '`; see <https://mdxjs.com/migrating/v2/> on how to migrate'
       )
     }
   }
@@ -196,9 +273,14 @@ export function createProcessor(options) {
 
   const pipeline = unified().use(remarkParse)
 
+  // before estree is injected
+  pipeline.use(getRehypeStealMdxmdast('md'))
   if (settings.format !== 'md') {
     pipeline.use(remarkMdx)
+    // inject estree, see source code of remarkMdx
   }
+  // after estree is injected
+  pipeline.use(getRehypeStealMdxmdast('mdast'))
 
   const remarkRehypeOptions = settings.remarkRehypeOptions || {}
 
@@ -210,6 +292,7 @@ export function createProcessor(options) {
       allowDangerousHtml: true,
       passThrough: [...(remarkRehypeOptions.passThrough || []), ...nodeTypes]
     })
+    .use(rehypeStealMdxhast)
     .use(settings.rehypePlugins || [])
 
   if (settings.format === 'md') {
