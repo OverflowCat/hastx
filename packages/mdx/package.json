@@ -1,34 +1,21 @@
 {
-  "name": "@mdx-js/mdx",
-  "version": "3.1.0",
-  "description": "MDX compiler",
+  "name": "typstx",
+  "version": "0.0.1-alpha.1",
+  "description": "Typst[MD]X compiler",
   "license": "MIT",
   "keywords": [
     "jsx",
-    "markdown",
+    "typst",
     "mdx",
-    "remark"
+    "rehype"
   ],
-  "homepage": "https://mdxjs.com",
+  "homepage": "https://overflow.cat",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mdx-js/mdx",
-    "directory": "packages/mdx/"
+    "url": "https://github.com/overflowcat/hastx"
   },
-  "bugs": "https://github.com/mdx-js/mdx/issues",
-  "funding": {
-    "type": "opencollective",
-    "url": "https://opencollective.com/unified"
-  },
-  "author": "John Otander <johnotander@gmail.com> (https://johno.com)",
-  "contributors": [
-    "John Otander <johnotander@gmail.com> (https://johno.com)",
-    "Tim Neutkens <tim@vercel.com>",
-    "Matija Marohnić <matija.marohnic@gmail.com>",
-    "Titus Wormer <tituswormer@gmail.com> (https://wooorm.com)",
-    "JounQin <admin@1stg.me> (https://www.1stg.me)",
-    "Christian Murphy <christian.murphy.42@gmail.com>"
-  ],
+  "bugs": "https://github.com/overflowcat/hastx/issues",
+  "author": "OverflowCat <overflowcat@gmail.com> (https://overflow.cat)",
   "type": "module",
   "sideEffects": false,
   "exports": {
