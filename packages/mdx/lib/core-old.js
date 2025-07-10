@@ -1,4 +1,3 @@
-
 /**
  * @import {Program} from 'estree-jsx'
  * @import {Root} from 'mdast'
@@ -38,8 +37,8 @@
  *   Whether to keep JSX (default: `false`);
  *   the default is to compile JSX away so that the resulting file is
  *   immediately runnable.
- * @property {string | null | undefined} [jsxImportSource='astro']
- *   Place to import automatic JSX runtimes from (default: `'astro'`);
+ * @property {string | null | undefined} [jsxImportSource='react']
+ *   Place to import automatic JSX runtimes from (default: `'react'`);
  *   when in the `automatic` runtime, this is used to define an import for
  *   `Fragment`, `jsx`, `jsxDEV`, and `jsxs`.
  * @property {'automatic' | 'classic' | null | undefined} [jsxRuntime='automatic']
@@ -122,7 +121,7 @@
  *   properties (default: `true`).
  */
 
-import { unreachable } from 'devlop'
+import {unreachable} from 'devlop'
 import recmaBuildJsx from 'recma-build-jsx'
 import recmaJsx from 'recma-jsx'
 import recmaStringify from 'recma-stringify'
@@ -130,12 +129,17 @@ import rehypeRecma from 'rehype-recma'
 import remarkMdx from 'remark-mdx'
 import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
-import { unified } from 'unified'
-import { recmaBuildJsxTransform } from './plugin/recma-build-jsx-transform.js'
-import { recmaDocument } from './plugin/recma-document.js'
-import { recmaJsxRewrite } from './plugin/recma-jsx-rewrite.js'
-import { remarkMarkAndUnravel } from './plugin/remark-mark-and-unravel.js'
-import { nodeTypes } from './node-types.js'
+import {unified} from 'unified'
+import {recmaBuildJsxTransform} from './plugin/recma-build-jsx-transform.js'
+import {recmaDocument} from './plugin/recma-document.js'
+import {recmaJsxRewrite} from './plugin/recma-jsx-rewrite.js'
+import {rehypeRemoveRaw} from './plugin/rehype-remove-raw.js'
+import {remarkMarkAndUnravel} from './plugin/remark-mark-and-unravel.js'
+import {nodeTypes} from './node-types.js'
+import { Parser } from 'acorn'
+import jsx from 'acorn-jsx'
+const myParser = Parser.extend(jsx())
+const acornOptions = {ecmaVersion: /** @type {const} */ 2024, sourceType: 'module'}
 
 const removedOptions = [
   'compilers',
@@ -148,68 +152,76 @@ const removedOptions = [
 
 let warned = false
 
-import { VFile } from "vfile"
+import { mkdirSync, rmdirSync, writeFileSync } from 'node:fs'
 
-export default function hastHastify() {
-  /** @type {Processor<undefined, undefined, undefined, Root, string>} */
-  const self = this
-
-  self.compiler = compiler
-
-  function compiler(tree) {
-    return tree
-  }
-}
-
-
-const createJsxProcessor = () => {
-  const pipelineJsx = unified()
-  .use(remarkParse)
-  .use(remarkMdx)
-  .use(remarkMarkAndUnravel)
-  // .use(settings.remarkPlugins || [])
-  .use(remarkRehype, {
-    // ...remarkRehypeOptions,
-    allowDangerousHtml: true,
-    // passThrough: [...(remarkRehypeOptions.passThrough || []), ...nodeTypes]
-    passThrough: [...nodeTypes]
+function recRemoveObject(obj, keys) {
+  // find keys recursively and delete them
+  Object.keys(obj).forEach((k) => {
+    if (keys.includes(k)) {
+      delete obj[k]
+    }
+    if (typeof obj[k] === 'object' && obj[k] !== null) {
+      recRemoveObject(obj[k], keys)
+    }
   })
-  .use(hastHastify)
-
-  return pipelineJsx
+  return obj
 }
 
-const pipelineJsx = createJsxProcessor()
-function jsx2hast(code) {
-  const file = new VFile({ value: code })
-  const result = pipelineJsx.processSync(file)
-  console.log(result.result)
-  return result.result
-}
-
-
-export const rehypeTransformJsxInTypst = () => {
-  // find all html.elem("script", attrs: ("data-jsx": "import Button from 'Button.jsx;'"))
-  // and transform them to html.elem("script", attrs: ("data-jsx": "import Button from 'Button.jsx;'"))
-  function compileJsx(node) {
-    if (node.type === "element" && node.tagName === "script") {
-      let hast = jsx2hast(node.properties["data-jsx"])
-      if (!hast) {
-        throw new Error("Failed to extract jsx from script")
-      }
-      hast = hast.children[0]
-      console.log("Found jsx, compile to", hast)
-      node.properties["data-jsx"] = undefined
-      return hast
+rmdirSync('ast', { recursive: true })
+let count = 1 // test case number
+const getRehypeStealMdxmdast = (stage = 'mdast') => {
+  const remarkStealMdxmdast = () => {
+    return function (tree, file) {
+      mkdirSync('ast', { recursive: true })
+      writeFileSync(`ast/case-${count}-${stage}.json`, JSON.stringify(tree, null, 2))
     }
-    if (node.children) {
-      node.children = node.children.map(compileJsx)
-    }
-    return node
   }
+  return remarkStealMdxmdast
+}
 
+function addOwnEsTree(node) {
+  if (node.type === 'mdxjsEsm' ||
+    node.type === 'mdxTextExpression' ||
+    node.type === 'mdxFlowExpression' ||
+    node.type === 'mdxJsxAttribute' ||
+    node.type === 'mdxJsxAttributeValueExpression' ||
+    node.type === 'mdxJsxExpressionAttribute') {
+      try {
+        const myEsTree = myParser.parse(node.value, acornOptions)
+        node.data.estree = myEsTree
+      } catch (e) {
+        console.log("<<<<<< SyntaxError when parsing", node.type, node.value)
+        console.log(e)
+      }
+  } else if (node.children) {
+    node.children.forEach(addOwnEsTree)
+  }
+}
+
+const rehypeStealMdxhast = () => {
+  /**
+   * @param {any} tree
+   * @param {any} file
+   */
   return function (tree, file) {
-    return compileJsx(tree)
+    // 创建一个新对象，将新属性放在前面
+    let newTree = {}
+
+    if (file.value) {
+      newTree.__value = file.value
+    } else {
+      newTree.__file = file
+    }
+
+    // 将原对象的所有属性复制到新对象
+    Object.assign(newTree, tree)
+
+
+    // newTree = recRemoveObject(newTree, ['__value', '__file', 'estree'])
+    addOwnEsTree(newTree)
+    mkdirSync('ast', { recursive: true })
+    writeFileSync(`ast/case-${count++}-hast.json`, JSON.stringify(newTree, null, 2))
+    // return newTree
   }
 }
 
@@ -223,7 +235,7 @@ export const rehypeTransformJsxInTypst = () => {
  * @return {Processor<Root, Program, Program, Program, string>}
  *   Processor.
  */
-export function createProcessor(options, $typst) {
+export function createProcessor(options) {
   const settings = options || {}
   let index = -1
 
@@ -259,32 +271,37 @@ export function createProcessor(options, $typst) {
     )
   }
 
-  function typ2rehype() {
-    // @ts-ignore
-    this.parser = parser;
+  const pipeline = unified().use(remarkParse)
 
-    function parser(_doc, _file) {
-      const result = $typst().tryHtml({
-        mainFileContent: _file.value
-      })
-      const hast = result.result?.hast();
-      if (!hast) {
-        throw new Error("Failed to parse typst")
-      }
-
-      console.log(hast)
-      return hast;
-    }
+  // before estree is injected
+  pipeline.use(getRehypeStealMdxmdast('md'))
+  if (settings.format !== 'md') {
+    pipeline.use(remarkMdx)
+    // inject estree, see source code of remarkMdx
   }
+  // after estree is injected
+  pipeline.use(getRehypeStealMdxmdast('mdast'))
 
-
-
-  const pipeline = unified()
-    .use(typ2rehype)
-    .use(rehypeTransformJsxInTypst)
-    .use(settings.rehypePlugins || [])
+  const remarkRehypeOptions = settings.remarkRehypeOptions || {}
 
   pipeline
+    .use(remarkMarkAndUnravel)
+    .use(settings.remarkPlugins || [])
+    .use(remarkRehype, {
+      ...remarkRehypeOptions,
+      allowDangerousHtml: true,
+      passThrough: [...(remarkRehypeOptions.passThrough || []), ...nodeTypes]
+    })
+    .use(rehypeStealMdxhast)
+    .use(settings.rehypePlugins || [])
+
+  if (settings.format === 'md') {
+    pipeline.use(rehypeRemoveRaw)
+  }
+
+  pipeline
+    // @ts-expect-error: `Program` is close enough to a `Node`,
+    // but type inference has trouble with it and bridges.
     .use(rehypeRecma, settings)
     .use(recmaDocument, settings)
     .use(recmaJsxRewrite, settings)
@@ -301,4 +318,3 @@ export function createProcessor(options, $typst) {
   // @ts-expect-error: TS doesn’t get the plugins we added with if-statements.
   return pipeline
 }
-

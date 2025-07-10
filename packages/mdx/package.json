@@ -108,6 +108,7 @@
   },
   "devDependencies": {
     "@myriaddreamin/typst-ts-node-compiler": "^0.6.1-rc1",
+    "@overflowcat/typst-ts-node-compiler": "0.6.1-rc116",
     "@overflowcat/typst-ts-node-compiler-darwin-arm64": "^0.6.1-rc116"
   }
 }
