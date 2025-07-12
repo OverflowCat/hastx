@@ -1,4 +1,3 @@
-
 /**
  * @import {Program} from 'estree-jsx'
  * @import {Root} from 'mdast'
@@ -122,7 +121,7 @@
  *   properties (default: `true`).
  */
 
-import { unreachable } from 'devlop'
+import {unreachable} from 'devlop'
 import recmaBuildJsx from 'recma-build-jsx'
 import recmaJsx from 'recma-jsx'
 import recmaStringify from 'recma-stringify'
@@ -130,12 +129,12 @@ import rehypeRecma from 'rehype-recma'
 import remarkMdx from 'remark-mdx'
 import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
-import { unified } from 'unified'
-import { recmaBuildJsxTransform } from './plugin/recma-build-jsx-transform.js'
-import { recmaDocument } from './plugin/recma-document.js'
-import { recmaJsxRewrite } from './plugin/recma-jsx-rewrite.js'
-import { remarkMarkAndUnravel } from './plugin/remark-mark-and-unravel.js'
-import { nodeTypes } from './node-types.js'
+import {unified} from 'unified'
+import {recmaBuildJsxTransform} from './plugin/recma-build-jsx-transform.js'
+import {recmaDocument} from './plugin/recma-document.js'
+import {recmaJsxRewrite} from './plugin/recma-jsx-rewrite.js'
+import {remarkMarkAndUnravel} from './plugin/remark-mark-and-unravel.js'
+import {nodeTypes} from './node-types.js'
 
 const removedOptions = [
   'compilers',
@@ -148,7 +147,7 @@ const removedOptions = [
 
 let warned = false
 
-import { VFile } from "vfile"
+import {VFile} from 'vfile'
 
 export default function hastHastify() {
   /** @type {Processor<undefined, undefined, undefined, Root, string>} */
@@ -161,45 +160,43 @@ export default function hastHastify() {
   }
 }
 
-
 const createJsxProcessor = () => {
   const pipelineJsx = unified()
-  .use(remarkParse)
-  .use(remarkMdx)
-  .use(remarkMarkAndUnravel)
-  // .use(settings.remarkPlugins || [])
-  .use(remarkRehype, {
-    // ...remarkRehypeOptions,
-    allowDangerousHtml: true,
-    // passThrough: [...(remarkRehypeOptions.passThrough || []), ...nodeTypes]
-    passThrough: [...nodeTypes]
-  })
-  .use(hastHastify)
+    .use(remarkParse)
+    .use(remarkMdx)
+    .use(remarkMarkAndUnravel)
+    // .use(settings.remarkPlugins || [])
+    .use(remarkRehype, {
+      // ...remarkRehypeOptions,
+      allowDangerousHtml: true,
+      // passThrough: [...(remarkRehypeOptions.passThrough || []), ...nodeTypes]
+      passThrough: [...nodeTypes]
+    })
+    .use(hastHastify)
 
   return pipelineJsx
 }
 
 const pipelineJsx = createJsxProcessor()
 function jsx2hast(code) {
-  const file = new VFile({ value: code })
+  const file = new VFile({value: code})
   const result = pipelineJsx.processSync(file)
   console.log(result.result)
   return result.result
 }
 
-
 export const rehypeTransformJsxInTypst = () => {
   // find all html.elem("script", attrs: ("data-jsx": "import Button from 'Button.jsx;'"))
   // and transform them to html.elem("script", attrs: ("data-jsx": "import Button from 'Button.jsx;'"))
   function compileJsx(node) {
-    if (node.type === "element" && node.tagName === "script") {
-      let hast = jsx2hast(node.properties["data-jsx"])
+    if (node.type === 'element' && node.tagName === 'script') {
+      let hast = jsx2hast(node.properties['data-jsx'])
       if (!hast) {
-        throw new Error("Failed to extract jsx from script")
+        throw new Error('Failed to extract jsx from script')
       }
       hast = hast.children[0]
-      console.log("Found jsx, compile to", hast)
-      node.properties["data-jsx"] = undefined
+      console.log('Found jsx, compile to', hast)
+      node.properties['data-jsx'] = undefined
       return hast
     }
     if (node.children) {
@@ -226,14 +223,15 @@ export const rehypeTransformJsxInTypst = () => {
 export function createProcessor(options, $typst) {
   const settings = options || {}
   let index = -1
+  const body = options?.body ?? true
 
   while (++index < removedOptions.length) {
     const key = removedOptions[index]
     if (key in settings) {
       unreachable(
         'Unexpected removed option `' +
-        key +
-        '`; see <https://mdxjs.com/migrating/v2/> on how to migrate'
+          key +
+          '`; see <https://mdxjs.com/migrating/v2/> on how to migrate'
       )
     }
   }
@@ -261,29 +259,33 @@ export function createProcessor(options, $typst) {
 
   function typ2rehype() {
     // @ts-ignore
-    this.parser = parser;
+    this.parser = parser
 
     function parser(_doc, _file) {
       const result = $typst().tryHtml({
         mainFileContent: _file.value
       })
-      const hast = result.result?.hast();
+      const hast = result.result?.hast()
       if (!hast) {
-        throw new Error("Failed to parse typst")
+        throw new Error('Failed to parse typst')
       }
 
       console.log(hast)
-      return hast;
+      return hast
     }
   }
 
-  let __hast = null;
+  let __hast = null
   function tryParse() {
     // @ts-ignore
-    this.parser = parser;
+    this.parser = parser
     function parser(_doc, file) {
-      return __hast;
+      if (body) {
+        __hast = __hast.children.filter((x) => x.tagName === 'body')
+        __hast = __hast.at(0)
+      }
     }
+    return __hast
   }
 
   const pipeline = unified()
@@ -305,9 +307,8 @@ export function createProcessor(options, $typst) {
     .use(recmaStringify, settings)
     .use(settings.recmaPlugins || [])
 
-
   pipeline.__setHast = function (hast) {
-    __hast = hast;
+    __hast = hast
   }
   // @ts-expect-error: TS doesn’t get the plugins we added with if-statements.
   return pipeline
