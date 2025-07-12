@@ -186,6 +186,8 @@ function jsx2hast(code) {
 }
 
 export const rehypeTransformJsxInTypst = () => {
+  let jsxImports = []
+
   // find all html.elem("script", attrs: ("data-jsx": "import Button from 'Button.jsx;'"))
   // and transform them to html.elem("script", attrs: ("data-jsx": "import Button from 'Button.jsx;'"))
   function compileJsx(node) {
@@ -196,6 +198,13 @@ export const rehypeTransformJsxInTypst = () => {
       }
       hast = hast.children[0]
       console.log('Found jsx, compile to', hast)
+      if (hast.type === 'mdxjsEsm' && Array.isArray(hast.data.estree.body)) {
+        for (const child of hast.data.estree.body) {
+          if (child.type !== 'ImportDeclaration') continue
+          const file = child?.source?.value
+          jsxImports.push(file)
+        }
+      }
       node.properties['data-jsx'] = undefined
       return hast
     }
@@ -206,7 +215,12 @@ export const rehypeTransformJsxInTypst = () => {
   }
 
   return function (tree, file) {
-    return compileJsx(tree)
+    jsxImports = []
+    const result = compileJsx(tree)
+    if (!result.data) result.data = {}
+    result.data.jsxImports = jsxImports
+    console.log('result', result)
+    return result
   }
 }
 
@@ -220,7 +234,7 @@ export const rehypeTransformJsxInTypst = () => {
  * @return {Processor<Root, Program, Program, Program, string>}
  *   Processor.
  */
-export function createProcessor(options, $typst) {
+export function createProcessor(options) {
   const settings = options || {}
   let index = -1
   const body = options?.body ?? true
@@ -257,24 +271,6 @@ export function createProcessor(options, $typst) {
     )
   }
 
-  function typ2rehype() {
-    // @ts-ignore
-    this.parser = parser
-
-    function parser(_doc, _file) {
-      const result = $typst().tryHtml({
-        mainFileContent: _file.value
-      })
-      const hast = result.result?.hast()
-      if (!hast) {
-        throw new Error('Failed to parse typst')
-      }
-
-      console.log(hast)
-      return hast
-    }
-  }
-
   let __hast = null
   function tryParse() {
     // @ts-ignore
@@ -284,8 +280,8 @@ export function createProcessor(options, $typst) {
         __hast = __hast.children.filter((x) => x.tagName === 'body')
         __hast = __hast.at(0)
       }
+      return __hast
     }
-    return __hast
   }
 
   const pipeline = unified()

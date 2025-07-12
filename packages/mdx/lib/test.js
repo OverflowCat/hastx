@@ -3,7 +3,12 @@ import {createProcessor} from './core.js'
 import {VFile} from 'vfile'
 const _typst = NodeCompiler.create({})
 const $typst = () => _typst
-const pipeline = createProcessor({jsxImportSource: 'astro'}, $typst)
+const pipeline = createProcessor(
+  {
+    body: true,
+    jsxImportSource: 'astro'
+  },
+)
 export async function test(
   text = `
   == Hello
@@ -15,6 +20,7 @@ export async function test(
     mainFileContent: text
   })
   const hast = compiledDoc.result?.hast()
+  // console.log(hast)
   pipeline.__setHast(hast)
   const vfile = new VFile({value: text})
   const result = await pipeline.process(vfile)
