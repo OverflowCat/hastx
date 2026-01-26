@@ -191,8 +191,8 @@ export const rehypeTransformJsxInTypst = () => {
   // find all html.elem("script", attrs: ("data-jsx": "import Button from 'Button.jsx;'"))
   // and transform them to html.elem("script", attrs: ("data-jsx": "import Button from 'Button.jsx;'"))
   function compileJsx(node) {
-    if (node.type === 'element' && node.tagName === 'script' && node.properties['data-jsx'] != undefined) {
-      let hast = jsx2hast(node.properties['data-jsx'])
+    if (node.type === 'element' && node.tagName === 'script' && node.properties['dataJsx'] != undefined) {
+      let hast = jsx2hast(node.properties['dataJsx'])
       if (!hast) {
         throw new Error('Failed to extract jsx from script')
       }
@@ -205,7 +205,7 @@ export const rehypeTransformJsxInTypst = () => {
           jsxImports.push(file)
         }
       }
-      node.properties['data-jsx'] = undefined
+      node.properties['dataJsx'] = undefined
       return hast
     }
     if (node.children) {
