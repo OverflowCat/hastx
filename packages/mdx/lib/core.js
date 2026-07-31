@@ -181,7 +181,6 @@ const pipelineJsx = createJsxProcessor()
 function jsx2hast(code) {
   const file = new VFile({value: code})
   const result = pipelineJsx.processSync(file)
-  console.log(result.result)
   return result.result
 }
 
@@ -197,7 +196,6 @@ export const rehypeTransformJsxInTypst = () => {
         throw new Error('Failed to extract jsx from script')
       }
       hast = hast.children[0]
-      console.log('Found jsx, compile to', hast)
       if (hast.type === 'mdxjsEsm' && Array.isArray(hast.data.estree.body)) {
         for (const child of hast.data.estree.body) {
           if (child.type !== 'ImportDeclaration') continue
@@ -219,7 +217,6 @@ export const rehypeTransformJsxInTypst = () => {
     const result = compileJsx(tree)
     if (!result.data) result.data = {}
     result.data.jsxImports = jsxImports
-    console.log('result', result)
     return result
   }
 }
